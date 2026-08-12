@@ -1,26 +1,31 @@
 # product-income-calculator-web
 
-Live demo: [https://kareembullard.github.io/product-income-calculator-web/](https://kareembullard.github.io/product-income-calculator-web/)
+Live: [https://kareembullard.github.io/product-income-calculator-web/](https://kareembullard.github.io/product-income-calculator-web/)
 
-Live "what if" calculator for the EUPM / unit-cost / income formula stack.
+My real product & income catalog, plus a live "what if" calculator for the EUPM / unit-cost / income formula stack.
 
 ## What it is
 
 A static, single-file web app version of [product-income-calculator](https://github.com/kareembullard/product-income-calculator) (the original tkinter + SQLite desktop app). This public version:
 
-- Uses the **exact same formulas**, verified identical to the desktop app (see the assertions in that repo's `main.py` and the tests run while building this one)
-- Ships with a **generic sample catalog** (Online Course, Ebook, Consulting Service, etc.) with illustrative figures instead of real financial data
-- Stores saved scenarios in your browser's `localStorage` instead of a shared database
+- Shows my **actual product catalog** — 120 products exported from my Airtable workspace, with real unit prices and income projections, published deliberately
+- Sortable/filterable table (by Area, Type, Income Type) plus a top-10-by-yearly-income bar chart (plain canvas, no chart library)
+- What-if calculator uses the **exact same formulas** as the desktop app, and can load any real product from the catalog as a starting point
+- Saved scenarios stay in your browser's `localStorage` — nothing is sent anywhere
 - Makes no network calls
 
 ```
-unit_cost        = unit_price * unit_cost_pct   (25% ≈ "Unit Cost Low", 50% ≈ "Unit Cost High")
+unit_cost        = unit_price * unit_cost_pct   (25% is my standard low-end estimate across the catalog)
 est_mnt_income   = unit_price * eupm
 est_yr_income    = est_mnt_income * 12
 unit_cost_mnt    = unit_cost * eupm
 est_mnt_profit   = est_mnt_income - unit_cost_mnt
 est_yr_profit    = est_mnt_profit * 12
 ```
+
+## Where the data comes from
+
+`data/products.json` is the export from the "Inventory 081026" Airtable base, Products and Services table — product name, type, area, unit price, EUPM/AUPM, estimated monthly/yearly income, unit cost range, and income type (Passive/Active). The `PRODUCTS` array in `index.html` is generated directly from this file.
 
 ## Run locally
 

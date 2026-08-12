@@ -4,21 +4,43 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Product / Income Calculator</title>
-<meta name="description" content="Live what-if calculator for unit price, EUPM, unit cost, and estimated monthly/yearly income and profit.">
+<meta name="description" content="Kareem Bullard's real product & income catalog, plus a live what-if calculator for unit price, EUPM, unit cost, and estimated monthly/yearly income and profit.">
 <style>
   :root {
     --bg: #f7f8fa; --surface: #ffffff; --border: #e2e5ea; --text: #1a1d23; --text-dim: #6b7280;
-    --accent: #2563eb; --accent-dim: #dbeafe; --radius: 10px;
+    --accent: #2563eb; --accent-dim: #dbeafe; --radius: 10px; --bar: #2563eb;
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #0f1115; --surface: #181b21; --border: #2a2e37; --text: #e5e7eb; --text-dim: #9aa1ad; --accent: #60a5fa; --accent-dim: #1e3a5f; }
+    :root { --bg: #0f1115; --surface: #181b21; --border: #2a2e37; --text: #e5e7eb; --text-dim: #9aa1ad; --accent: #60a5fa; --accent-dim: #1e3a5f; --bar: #60a5fa; }
   }
   * { box-sizing: border-box; }
   body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
-  .wrap { max-width: 560px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
   h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.1rem; margin: 2rem 0 .6rem; border-bottom: 2px solid var(--border); padding-bottom: .35rem; }
   .sub { color: var(--text-dim); font-size: .92rem; margin: 0 0 1rem; }
   .privacy-note { font-size: .78rem; color: var(--text-dim); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: .6rem .8rem; margin-bottom: 1.25rem; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .7rem; margin-bottom: 1rem; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: .7rem .9rem; }
+  .stat .label { font-size: .72rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .02em; }
+  .stat .value { font-size: 1.15rem; font-weight: 700; margin-top: .15rem; }
+
+  .filters { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .8rem; }
+  select.chip, input.chip { padding: .4rem .65rem; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: .82rem; }
+
+  .table-wrap { overflow-x: auto; margin-bottom: .5rem; }
+  table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  th, td { text-align: left; padding: .5rem .6rem; font-size: .82rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--text-dim); font-weight: 600; font-size: .7rem; text-transform: uppercase; letter-spacing: .02em; cursor: pointer; user-select: none; }
+  th:hover { color: var(--accent); }
+  tr:last-child td { border-bottom: none; }
+  td.name { white-space: normal; max-width: 220px; font-weight: 600; }
+  .tag { display: inline-block; background: var(--bg); border: 1px solid var(--border); border-radius: 999px; padding: .05rem .5rem; font-size: .7rem; color: var(--text-dim); }
+  .count { font-size: .8rem; color: var(--text-dim); margin-bottom: .5rem; }
+
+  .chart-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; margin-bottom: .5rem; }
+  canvas { width: 100%; height: 280px; display: block; }
 
   select, input[type=text], input[type=number] {
     width: 100%; padding: .6rem .75rem; font-size: .95rem; border: 1px solid var(--border); border-radius: var(--radius);
@@ -41,7 +63,6 @@
   .save-row input { flex: 1; }
   .btn { padding: .6rem 1.1rem; border-radius: var(--radius); border: none; background: var(--accent); color: #fff; font-size: .9rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
   .btn:hover { filter: brightness(1.06); }
-  .btn.secondary { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
   .status { font-size: .85rem; color: var(--text-dim); margin-top: .6rem; min-height: 1.2em; }
 
   ul.scenarios { list-style: none; margin: .8rem 0 0; padding: 0; }
@@ -60,10 +81,39 @@
 <body>
 <div class="wrap">
   <h1>🧮 Product / Income Calculator</h1>
-  <p class="sub">Live "what if" calculator reproducing the EUPM / unit-cost / income formula stack.</p>
-  <div class="privacy-note">🔒 Saved scenarios stay in <em>your</em> browser (<code>localStorage</code>) — nothing is sent anywhere. The catalog dropdown below is generic sample data, not real financial figures.</div>
+  <p class="sub">My real product & income catalog, plus a live "what if" calculator using the same formula stack.</p>
+  <div class="privacy-note">This is my real product/pricing catalog (120 products), exported from my own Airtable workspace and published deliberately. Saved calculator scenarios stay in <em>your</em> browser (<code>localStorage</code>) — nothing is sent anywhere.</div>
 
-  <label for="catalog-select">Load from sample catalog (optional)</label>
+  <div class="stat-row" id="stats"></div>
+
+  <h2>Product Catalog</h2>
+  <div class="filters">
+    <select class="chip" id="area-filter"><option value="">All Areas</option></select>
+    <select class="chip" id="type-filter"><option value="">All Types</option></select>
+    <select class="chip" id="income-filter"><option value="">All Income Types</option></select>
+  </div>
+  <div class="count" id="count"></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th data-col="name">Product</th>
+          <th data-col="type">Type</th>
+          <th data-col="unitPrice">Unit Price</th>
+          <th data-col="eupm">EUPM</th>
+          <th data-col="estMntIncome">Mnt. Income</th>
+          <th data-col="estYrIncome">Yr. Income</th>
+        </tr>
+      </thead>
+      <tbody id="table-body"></tbody>
+    </table>
+  </div>
+
+  <h2>Top 10 by Estimated Yearly Income</h2>
+  <div class="chart-wrap"><canvas id="chart"></canvas></div>
+
+  <h2>What-If Calculator</h2>
+  <label for="catalog-select">Load a real product (optional)</label>
   <select id="catalog-select"></select>
 
   <fieldset>
@@ -99,11 +149,1935 @@
   </fieldset>
 
   <footer>
-    Public demo — scenarios live only in your browser. Source: <a href="https://github.com/kareembullard/product-income-calculator-web" target="_blank" rel="noopener">product-income-calculator-web</a>
+    Kareem Bullard's product & income catalog. Source: <a href="https://github.com/kareembullard/product-income-calculator-web" target="_blank" rel="noopener">product-income-calculator-web</a>
   </footer>
 </div>
 
 <script>
+// Real product/income data (Kareem Bullard) — from Airtable "Inventory 081026" base, Products and Services table.
+const PRODUCTS = [
+ {
+  "id": "social-media-graphics-package",
+  "name": "Social Media Graphics Package",
+  "type": "Digital Download",
+  "area": "Production",
+  "unitPrice": 100,
+  "eupm": 5,
+  "unitCostLow": 25,
+  "unitCostHigh": 50,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 500,
+  "estYrIncome": 6000,
+  "incomeType": "Passive",
+  "status": "Best to Build"
+ },
+ {
+  "id": "photo-editing-service",
+  "name": "Photo Editing Service",
+  "type": "Service",
+  "area": "Production",
+  "unitPrice": 30,
+  "eupm": 4,
+  "unitCostLow": 7.5,
+  "unitCostHigh": 15,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "visuals-bundle",
+  "name": "Visuals Bundle",
+  "type": "Digital Download",
+  "area": "Production",
+  "unitPrice": 100,
+  "eupm": 5,
+  "unitCostLow": 25,
+  "unitCostHigh": 50,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 500,
+  "estYrIncome": 6000,
+  "incomeType": "Passive",
+  "status": "Best to Build"
+ },
+ {
+  "id": "pmp-certification-study-system",
+  "name": "PMP Certification Study System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "socially-responsible-content-system",
+  "name": "Socially Responsible Content System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "business-persona-template",
+  "name": "Business Persona Template",
+  "type": "Digital Download",
+  "area": "Business",
+  "unitPrice": 40,
+  "eupm": 6,
+  "unitCostLow": 10,
+  "unitCostHigh": 20,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 240,
+  "estYrIncome": 2880,
+  "incomeType": "Passive",
+  "status": "Needs Build"
+ },
+ {
+  "id": "ai-music-collection",
+  "name": "AI Music Collection",
+  "type": "Digital Download",
+  "area": "Production",
+  "unitPrice": 100,
+  "eupm": 5,
+  "unitCostLow": 25,
+  "unitCostHigh": 50,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 500,
+  "estYrIncome": 6000,
+  "incomeType": "Passive",
+  "status": ""
+ },
+ {
+  "id": "networking-events-management-system",
+  "name": "Networking Events Management System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "social-media-templates-bundle",
+  "name": "Social Media Templates Bundle",
+  "type": "Digital Download",
+  "area": "Production",
+  "unitPrice": 100,
+  "eupm": 5,
+  "unitCostLow": 25,
+  "unitCostHigh": 50,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 500,
+  "estYrIncome": 6000,
+  "incomeType": "Passive",
+  "status": ""
+ },
+ {
+  "id": "real-estate-management-system",
+  "name": "Real Estate Management System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "product-sale-commission-service",
+  "name": "Product Sale (Commission) Service",
+  "type": "Service",
+  "area": "Business",
+  "unitPrice": 500,
+  "eupm": 1,
+  "unitCostLow": 125,
+  "unitCostHigh": 250,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 500,
+  "estYrIncome": 6000,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "professional-networking-system",
+  "name": "Professional Networking System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "entertaining-management-system",
+  "name": "Entertaining Management System",
+  "type": "System",
+  "area": "Personal",
+  "unitPrice": 20,
+  "eupm": 7,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 140,
+  "estYrIncome": 1680,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "resume-templates",
+  "name": "Resume Templates",
+  "type": "Digital Download",
+  "area": "Business",
+  "unitPrice": 20,
+  "eupm": 6,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Passive",
+  "status": "Needs Build"
+ },
+ {
+  "id": "business-video-ad-placement-service",
+  "name": "Business Video Ad Placement Service",
+  "type": "Service",
+  "area": "Business",
+  "unitPrice": 120,
+  "eupm": 1,
+  "unitCostLow": 30,
+  "unitCostHigh": 60,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "social-media-course",
+  "name": "Social Media Course",
+  "type": "Course",
+  "area": "Business",
+  "unitPrice": 120,
+  "eupm": 3,
+  "unitCostLow": 30,
+  "unitCostHigh": 60,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 360,
+  "estYrIncome": 4320,
+  "incomeType": "Passive",
+  "status": ""
+ },
+ {
+  "id": "digital-presence-system",
+  "name": "Digital Presence System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "emotion-regulation-system",
+  "name": "Emotion Regulation System",
+  "type": "System",
+  "area": "Personal",
+  "unitPrice": 20,
+  "eupm": 7,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 140,
+  "estYrIncome": 1680,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "content-management-system",
+  "name": "Content Management System",
+  "type": "System",
+  "area": "Production",
+  "unitPrice": 120,
+  "eupm": 3,
+  "unitCostLow": 30,
+  "unitCostHigh": 60,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 360,
+  "estYrIncome": 4320,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "muscle-building-system",
+  "name": "Muscle Building System",
+  "type": "System",
+  "area": "Personal",
+  "unitPrice": 20,
+  "eupm": 7,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 140,
+  "estYrIncome": 1680,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "business-e-commerce-development-service",
+  "name": "Business E-Commerce Development Service",
+  "type": "Service",
+  "area": "Business",
+  "unitPrice": 300,
+  "eupm": 1,
+  "unitCostLow": 75,
+  "unitCostHigh": 150,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 300,
+  "estYrIncome": 3600,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "brand-management-system",
+  "name": "Brand Management System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "business-card-template",
+  "name": "Business Card Template",
+  "type": "Digital Download",
+  "area": "Production",
+  "unitPrice": 20,
+  "eupm": 3,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 60,
+  "estYrIncome": 720,
+  "incomeType": "Passive",
+  "status": "Ready for Remix"
+ },
+ {
+  "id": "video-collections",
+  "name": "Video Collections",
+  "type": "Digital Download",
+  "area": "Production",
+  "unitPrice": 100,
+  "eupm": 5,
+  "unitCostLow": 25,
+  "unitCostHigh": 50,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 500,
+  "estYrIncome": 6000,
+  "incomeType": "Passive",
+  "status": ""
+ },
+ {
+  "id": "production-management-system",
+  "name": "Production Management System",
+  "type": "System",
+  "area": "Production",
+  "unitPrice": 120,
+  "eupm": 3,
+  "unitCostLow": 30,
+  "unitCostHigh": 60,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 360,
+  "estYrIncome": 4320,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "policy-and-legality-course",
+  "name": "Policy and Legality Course",
+  "type": "Course",
+  "area": "Business",
+  "unitPrice": 120,
+  "eupm": 3,
+  "unitCostLow": 30,
+  "unitCostHigh": 60,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 360,
+  "estYrIncome": 4320,
+  "incomeType": "Passive",
+  "status": ""
+ },
+ {
+  "id": "brand-asset-management-system",
+  "name": "Brand Asset Management System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "blog-article-development-system",
+  "name": "Blog Article Development System",
+  "type": "System",
+  "area": "Production",
+  "unitPrice": 120,
+  "eupm": 3,
+  "unitCostLow": 30,
+  "unitCostHigh": 60,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 360,
+  "estYrIncome": 4320,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "relationship-engagement-system",
+  "name": "Relationship Engagement System",
+  "type": "System",
+  "area": "Personal",
+  "unitPrice": 20,
+  "eupm": 7,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 140,
+  "estYrIncome": 1680,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "online-business-app",
+  "name": "Online Business App",
+  "type": "Subscription",
+  "area": "Business",
+  "unitPrice": 20,
+  "eupm": 10,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 200,
+  "estYrIncome": 2400,
+  "incomeType": "Passive",
+  "status": ""
+ },
+ {
+  "id": "social-media-image-bundle",
+  "name": "Social Media Image Bundle",
+  "type": "Digital Download",
+  "area": "Production",
+  "unitPrice": 100,
+  "eupm": 5,
+  "unitCostLow": 25,
+  "unitCostHigh": 50,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 500,
+  "estYrIncome": 6000,
+  "incomeType": "Passive",
+  "status": "Needs Extraction"
+ },
+ {
+  "id": "business-article-ad-placement-service",
+  "name": "Business Article Ad Placement Service",
+  "type": "Service",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 1,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 60,
+  "estYrIncome": 720,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "automation-systems",
+  "name": "Automation Systems",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "method-to-plan-app",
+  "name": "Method to Plan App",
+  "type": "Subscription",
+  "area": "Business",
+  "unitPrice": 20,
+  "eupm": 10,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 200,
+  "estYrIncome": 2400,
+  "incomeType": "Passive",
+  "status": ""
+ },
+ {
+  "id": "spirituality-ebook",
+  "name": "Spirituality EBook",
+  "type": "Digital Download",
+  "area": "Production",
+  "unitPrice": 20,
+  "eupm": 7,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 140,
+  "estYrIncome": 1680,
+  "incomeType": "Passive",
+  "status": "Best to Build"
+ },
+ {
+  "id": "stockholders-management-system",
+  "name": "Stockholders Management System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "detoxing-system",
+  "name": "Detoxing System",
+  "type": "System",
+  "area": "Personal",
+  "unitPrice": 20,
+  "eupm": 7,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 140,
+  "estYrIncome": 1680,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "timeline-bubble-app",
+  "name": "Timeline Bubble App",
+  "type": "Subscription",
+  "area": "Business",
+  "unitPrice": 20,
+  "eupm": 10,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 200,
+  "estYrIncome": 2400,
+  "incomeType": "Passive",
+  "status": ""
+ },
+ {
+  "id": "business-cloud-planning-service",
+  "name": "Business Cloud Planning Service",
+  "type": "Service",
+  "area": "Business",
+  "unitPrice": 400,
+  "eupm": 1,
+  "unitCostLow": 100,
+  "unitCostHigh": 200,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 400,
+  "estYrIncome": 4800,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "confidence-building-system",
+  "name": "Confidence-building System",
+  "type": "System",
+  "area": "Personal",
+  "unitPrice": 20,
+  "eupm": 7,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 140,
+  "estYrIncome": 1680,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "linkedin-learning-system",
+  "name": "LinkedIn Learning System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Passive",
+  "status": ""
+ },
+ {
+  "id": "e-commerce-management-system",
+  "name": "E-commerce Management System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "blog-management-system",
+  "name": "Blog Management System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "business-startup-template",
+  "name": "Business Startup Template",
+  "type": "Digital Download",
+  "area": "Business",
+  "unitPrice": 40,
+  "eupm": 6,
+  "unitCostLow": 10,
+  "unitCostHigh": 20,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 240,
+  "estYrIncome": 2880,
+  "incomeType": "Passive",
+  "status": ""
+ },
+ {
+  "id": "production-ebook",
+  "name": "Production Ebook",
+  "type": "Digital Download",
+  "area": "Production",
+  "unitPrice": 10,
+  "eupm": 3,
+  "unitCostLow": 2.5,
+  "unitCostHigh": 5,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 30,
+  "estYrIncome": 360,
+  "incomeType": "Passive",
+  "status": "Needs Extraction"
+ },
+ {
+  "id": "video-communication-system",
+  "name": "Video Communication System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "sleep-routine-system",
+  "name": "Sleep Routine System",
+  "type": "System",
+  "area": "Personal",
+  "unitPrice": 20,
+  "eupm": 7,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 140,
+  "estYrIncome": 1680,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "stylized-branding-design-packs",
+  "name": "Stylized Branding Design Packs",
+  "type": "Digital Download",
+  "area": "Production",
+  "unitPrice": 100,
+  "eupm": 5,
+  "unitCostLow": 25,
+  "unitCostHigh": 50,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 500,
+  "estYrIncome": 6000,
+  "incomeType": "Passive",
+  "status": "Best to Build"
+ },
+ {
+  "id": "timelines-and-infographics-bundle",
+  "name": "Timelines And Infographics Bundle",
+  "type": "Digital Download",
+  "area": "Production",
+  "unitPrice": 100,
+  "eupm": 5,
+  "unitCostLow": 25,
+  "unitCostHigh": 50,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 500,
+  "estYrIncome": 6000,
+  "incomeType": "Passive",
+  "status": "Needs Extraction"
+ },
+ {
+  "id": "business-technology-integration-service",
+  "name": "Business Technology Integration Service",
+  "type": "Service",
+  "area": "Business",
+  "unitPrice": 400,
+  "eupm": 1,
+  "unitCostLow": 100,
+  "unitCostHigh": 200,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 400,
+  "estYrIncome": 4800,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "business-trademarking-service",
+  "name": "Business Trademarking Service",
+  "type": "Service",
+  "area": "Business",
+  "unitPrice": 200,
+  "eupm": 1,
+  "unitCostLow": 50,
+  "unitCostHigh": 100,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 200,
+  "estYrIncome": 2400,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "business-ebook",
+  "name": "Business Ebook",
+  "type": "Digital Download",
+  "area": "Business",
+  "unitPrice": 10,
+  "eupm": 3,
+  "unitCostLow": 2.5,
+  "unitCostHigh": 5,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 30,
+  "estYrIncome": 360,
+  "incomeType": "Passive",
+  "status": ""
+ },
+ {
+  "id": "logo-design-service",
+  "name": "Logo Design Service",
+  "type": "Service",
+  "area": "Production",
+  "unitPrice": 120,
+  "eupm": 4,
+  "unitCostLow": 30,
+  "unitCostHigh": 60,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 480,
+  "estYrIncome": 5760,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "keto-and-pescatarian-diet-system",
+  "name": "Keto and Pescatarian Diet System",
+  "type": "System",
+  "area": "Personal",
+  "unitPrice": 20,
+  "eupm": 7,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 140,
+  "estYrIncome": 1680,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "distrokid-release-system",
+  "name": "Distrokid Release System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "document-management-system",
+  "name": "Document Management System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "album-cover-design-service",
+  "name": "Album Cover Design Service",
+  "type": "Service",
+  "area": "Production",
+  "unitPrice": 120,
+  "eupm": 4,
+  "unitCostLow": 30,
+  "unitCostHigh": 60,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 480,
+  "estYrIncome": 5760,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "business-credit-line-course",
+  "name": "Business Credit Line Course",
+  "type": "Course",
+  "area": "Business",
+  "unitPrice": 120,
+  "eupm": 3,
+  "unitCostLow": 30,
+  "unitCostHigh": 60,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 360,
+  "estYrIncome": 4320,
+  "incomeType": "Passive",
+  "status": ""
+ },
+ {
+  "id": "business-technology-planning-service",
+  "name": "Business Technology Planning Service",
+  "type": "Service",
+  "area": "Business",
+  "unitPrice": 300,
+  "eupm": 1,
+  "unitCostLow": 75,
+  "unitCostHigh": 150,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 300,
+  "estYrIncome": 3600,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "business-networking-system",
+  "name": "Business Networking System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "tech-project-portfolio-template",
+  "name": "Tech Project Portfolio Template",
+  "type": "Digital Download",
+  "area": "Business",
+  "unitPrice": 40,
+  "eupm": 6,
+  "unitCostLow": 10,
+  "unitCostHigh": 20,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 240,
+  "estYrIncome": 2880,
+  "incomeType": "Passive",
+  "status": ""
+ },
+ {
+  "id": "family-and-friends-social-system",
+  "name": "Family and Friends Social System",
+  "type": "System",
+  "area": "Personal",
+  "unitPrice": 20,
+  "eupm": 7,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 140,
+  "estYrIncome": 1680,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "aptitude-profile-system",
+  "name": "Aptitude Profile System",
+  "type": "System",
+  "area": "Personal",
+  "unitPrice": 20,
+  "eupm": 7,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 140,
+  "estYrIncome": 1680,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "production-tools-subscriptions",
+  "name": "Production Tools Subscriptions",
+  "type": "Subscription",
+  "area": "Production",
+  "unitPrice": 20,
+  "eupm": 15,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 300,
+  "estYrIncome": 3600,
+  "incomeType": "Passive",
+  "status": ""
+ },
+ {
+  "id": "wealth-building-system",
+  "name": "Wealth Building System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "social-media-content-bundle",
+  "name": "Social Media Content Bundle",
+  "type": "Digital Download",
+  "area": "Production",
+  "unitPrice": 100,
+  "eupm": 5,
+  "unitCostLow": 25,
+  "unitCostHigh": 50,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 500,
+  "estYrIncome": 6000,
+  "incomeType": "Passive",
+  "status": "Needs Build"
+ },
+ {
+  "id": "business-management-template",
+  "name": "Business Management Template",
+  "type": "Digital Download",
+  "area": "Business",
+  "unitPrice": 40,
+  "eupm": 6,
+  "unitCostLow": 10,
+  "unitCostHigh": 20,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 240,
+  "estYrIncome": 2880,
+  "incomeType": "Passive",
+  "status": ""
+ },
+ {
+  "id": "business-brand-development-service",
+  "name": "Business Brand Development Service",
+  "type": "Service",
+  "area": "Business",
+  "unitPrice": 200,
+  "eupm": 1,
+  "unitCostLow": 50,
+  "unitCostHigh": 100,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 200,
+  "estYrIncome": 2400,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "memoir-writing-system",
+  "name": "Memoir Writing System",
+  "type": "System",
+  "area": "Personal",
+  "unitPrice": 20,
+  "eupm": 7,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 140,
+  "estYrIncome": 1680,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "website-design-service",
+  "name": "Website Design Service",
+  "type": "Service",
+  "area": "Production",
+  "unitPrice": 200,
+  "eupm": 4,
+  "unitCostLow": 50,
+  "unitCostHigh": 100,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 800,
+  "estYrIncome": 9600,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "lab-building-system",
+  "name": "Lab Building System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "digital-art-prints-bundle",
+  "name": "Digital Art Prints Bundle",
+  "type": "Digital Download",
+  "area": "Production",
+  "unitPrice": 100,
+  "eupm": 5,
+  "unitCostLow": 25,
+  "unitCostHigh": 50,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 500,
+  "estYrIncome": 6000,
+  "incomeType": "Passive",
+  "status": ""
+ },
+ {
+  "id": "skill-bank-template",
+  "name": "Skill Bank Template",
+  "type": "Digital Download",
+  "area": "Business",
+  "unitPrice": 20,
+  "eupm": 6,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Passive",
+  "status": "Needs Extraction"
+ },
+ {
+  "id": "saas-subscription",
+  "name": "SaaS Subscription",
+  "type": "Subscription",
+  "area": "Business",
+  "unitPrice": 20,
+  "eupm": 5,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 100,
+  "estYrIncome": 1200,
+  "incomeType": "Passive",
+  "status": ""
+ },
+ {
+  "id": "certification-and-skills-system",
+  "name": "Certification and Skills System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "project-management-system",
+  "name": "Project Management System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "journaling-system",
+  "name": "Journaling System",
+  "type": "System",
+  "area": "Personal",
+  "unitPrice": 20,
+  "eupm": 7,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 140,
+  "estYrIncome": 1680,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "thought-processing-system",
+  "name": "Thought Processing System",
+  "type": "System",
+  "area": "Personal",
+  "unitPrice": 20,
+  "eupm": 7,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 140,
+  "estYrIncome": 1680,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "business-tools-subscriptions",
+  "name": "Business Tools Subscriptions",
+  "type": "Subscription",
+  "area": "Business",
+  "unitPrice": 20,
+  "eupm": 3,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 60,
+  "estYrIncome": 720,
+  "incomeType": "Passive",
+  "status": ""
+ },
+ {
+  "id": "freelancing-system",
+  "name": "Freelancing System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "financial-system",
+  "name": "Financial System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "sales-lead-generation-system",
+  "name": "Sales Lead Generation System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "chatgpt-for-fiverr-system",
+  "name": "Chatgpt for Fiverr System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "notion-template",
+  "name": "Notion Template",
+  "type": "Digital Download",
+  "area": "Business",
+  "unitPrice": 20,
+  "eupm": 6,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Passive",
+  "status": "Needs Extraction"
+ },
+ {
+  "id": "productivity-template",
+  "name": "Productivity Template",
+  "type": "Digital Download",
+  "area": "Personal",
+  "unitPrice": 20,
+  "eupm": 5,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 100,
+  "estYrIncome": 1200,
+  "incomeType": "Passive",
+  "status": "Needs Extraction"
+ },
+ {
+  "id": "cardio-exercise-system",
+  "name": "Cardio Exercise System",
+  "type": "System",
+  "area": "Personal",
+  "unitPrice": 20,
+  "eupm": 7,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 140,
+  "estYrIncome": 1680,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "ace-ventura-music-album",
+  "name": "Ace Ventura Music Album",
+  "type": "Production",
+  "area": "Production",
+  "unitPrice": 0,
+  "eupm": 0,
+  "unitCostLow": 0,
+  "unitCostHigh": 0,
+  "unitCostPctLow": 0,
+  "unitCostPctHigh": 0,
+  "estMntIncome": 0,
+  "estYrIncome": 0,
+  "incomeType": "Passive",
+  "status": ""
+ },
+ {
+  "id": "marketing-system",
+  "name": "Marketing System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "brand-trust-system",
+  "name": "Brand Trust System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "digital-media-artistry-course",
+  "name": "Digital Media Artistry Course",
+  "type": "Course",
+  "area": "Production",
+  "unitPrice": 200,
+  "eupm": 3,
+  "unitCostLow": 50,
+  "unitCostHigh": 100,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 600,
+  "estYrIncome": 7200,
+  "incomeType": "Passive",
+  "status": ""
+ },
+ {
+  "id": "website-design-template",
+  "name": "Website Design Template",
+  "type": "Digital Download",
+  "area": "Production",
+  "unitPrice": 30,
+  "eupm": 3,
+  "unitCostLow": 7.5,
+  "unitCostHigh": 15,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 90,
+  "estYrIncome": 1080,
+  "incomeType": "Passive",
+  "status": ""
+ },
+ {
+  "id": "photo-editing-presets-bundle",
+  "name": "Photo Editing Presets Bundle",
+  "type": "Digital Download",
+  "area": "Production",
+  "unitPrice": 100,
+  "eupm": 5,
+  "unitCostLow": 25,
+  "unitCostHigh": 50,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 500,
+  "estYrIncome": 6000,
+  "incomeType": "Passive",
+  "status": "Needs Build"
+ },
+ {
+  "id": "business-card-design-service",
+  "name": "Business Card Design Service",
+  "type": "Service",
+  "area": "Production",
+  "unitPrice": 60,
+  "eupm": 4,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 240,
+  "estYrIncome": 2880,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "business-sops-system",
+  "name": "Business SOPs System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "business-custom-blog-article-service",
+  "name": "Business Custom Blog Article Service",
+  "type": "Service",
+  "area": "Production",
+  "unitPrice": 60,
+  "eupm": 4,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 240,
+  "estYrIncome": 2880,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "flyer-template",
+  "name": "Flyer Template",
+  "type": "Digital Download",
+  "area": "Production",
+  "unitPrice": 20,
+  "eupm": 3,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 60,
+  "estYrIncome": 720,
+  "incomeType": "Passive",
+  "status": "Ready for Remix"
+ },
+ {
+  "id": "fx-apps-collection",
+  "name": "FX Apps Collection",
+  "type": "Digital Download",
+  "area": "Production",
+  "unitPrice": 100,
+  "eupm": 5,
+  "unitCostLow": 25,
+  "unitCostHigh": 50,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 500,
+  "estYrIncome": 6000,
+  "incomeType": "Passive",
+  "status": ""
+ },
+ {
+  "id": "album-cover-template",
+  "name": "Album Cover Template",
+  "type": "Digital Download",
+  "area": "Production",
+  "unitPrice": 20,
+  "eupm": 3,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 60,
+  "estYrIncome": 720,
+  "incomeType": "Passive",
+  "status": "Ready for Remix"
+ },
+ {
+  "id": "wealth-management-system",
+  "name": "Wealth Management System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "flyer-design-service",
+  "name": "Flyer Design Service",
+  "type": "Service",
+  "area": "Production",
+  "unitPrice": 60,
+  "eupm": 4,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 240,
+  "estYrIncome": 2880,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "behavior-management-system",
+  "name": "Behavior Management System",
+  "type": "System",
+  "area": "Personal",
+  "unitPrice": 20,
+  "eupm": 7,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 140,
+  "estYrIncome": 1680,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "business-consulting-service",
+  "name": "Business Consulting Service",
+  "type": "Service",
+  "area": "Business",
+  "unitPrice": 200,
+  "eupm": 1,
+  "unitCostLow": 50,
+  "unitCostHigh": 100,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 200,
+  "estYrIncome": 2400,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "project-reporting-system",
+  "name": "Project Reporting System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "music-licenses-service",
+  "name": "Music Licenses Service",
+  "type": "Service",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 1,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 60,
+  "estYrIncome": 720,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "ip-assets-management-system",
+  "name": "IP Assets Management System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "writing-management-system",
+  "name": "Writing Management System",
+  "type": "System",
+  "area": "Production",
+  "unitPrice": 120,
+  "eupm": 3,
+  "unitCostLow": 30,
+  "unitCostHigh": 60,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 360,
+  "estYrIncome": 4320,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "spiritual-guidance-service",
+  "name": "Spiritual Guidance Service",
+  "type": "Service",
+  "area": "Personal",
+  "unitPrice": 100,
+  "eupm": 3,
+  "unitCostLow": 25,
+  "unitCostHigh": 50,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 300,
+  "estYrIncome": 3600,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "business-security-planning-service",
+  "name": "Business Security Planning Service",
+  "type": "Service",
+  "area": "Business",
+  "unitPrice": 400,
+  "eupm": 1,
+  "unitCostLow": 100,
+  "unitCostHigh": 200,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 400,
+  "estYrIncome": 4800,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "personal-accountability-system",
+  "name": "Personal Accountability System",
+  "type": "System",
+  "area": "Personal",
+  "unitPrice": 20,
+  "eupm": 7,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 140,
+  "estYrIncome": 1680,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "diet-planning-system",
+  "name": "Diet Planning System",
+  "type": "System",
+  "area": "Personal",
+  "unitPrice": 20,
+  "eupm": 7,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 140,
+  "estYrIncome": 1680,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "community-engagement-system",
+  "name": "Community Engagement System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "health-monitoring-system",
+  "name": "Health Monitoring System",
+  "type": "System",
+  "area": "Personal",
+  "unitPrice": 20,
+  "eupm": 7,
+  "unitCostLow": 5,
+  "unitCostHigh": 10,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 140,
+  "estYrIncome": 1680,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "copyrighting-course",
+  "name": "Copyrighting Course",
+  "type": "Course",
+  "area": "Business",
+  "unitPrice": 120,
+  "eupm": 3,
+  "unitCostLow": 30,
+  "unitCostHigh": 60,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 360,
+  "estYrIncome": 4320,
+  "incomeType": "Passive",
+  "status": ""
+ },
+ {
+  "id": "ip-security-system",
+  "name": "IP Security System",
+  "type": "System",
+  "area": "Production",
+  "unitPrice": 120,
+  "eupm": 3,
+  "unitCostLow": 30,
+  "unitCostHigh": 60,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 360,
+  "estYrIncome": 4320,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "artistic-stock-photos-bundle",
+  "name": "Artistic Stock Photos Bundle",
+  "type": "Digital Download",
+  "area": "Production",
+  "unitPrice": 100,
+  "eupm": 5,
+  "unitCostLow": 25,
+  "unitCostHigh": 50,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 500,
+  "estYrIncome": 6000,
+  "incomeType": "Passive",
+  "status": "Best to Build"
+ },
+ {
+  "id": "tool-integration-system",
+  "name": "Tool Integration System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "advertising-system",
+  "name": "Advertising System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "optimize-life-management-system",
+  "name": "Optimize Life Management System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ },
+ {
+  "id": "graphic-design-templates-bundle",
+  "name": "Graphic Design Templates Bundle",
+  "type": "Digital Download",
+  "area": "Production",
+  "unitPrice": 100,
+  "eupm": 5,
+  "unitCostLow": 25,
+  "unitCostHigh": 50,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 500,
+  "estYrIncome": 6000,
+  "incomeType": "Passive",
+  "status": "Best to Build"
+ },
+ {
+  "id": "credit-score-system",
+  "name": "Credit Score System",
+  "type": "System",
+  "area": "Business",
+  "unitPrice": 60,
+  "eupm": 2,
+  "unitCostLow": 15,
+  "unitCostHigh": 30,
+  "unitCostPctLow": 0.25,
+  "unitCostPctHigh": 0.5,
+  "estMntIncome": 120,
+  "estYrIncome": 1440,
+  "incomeType": "Active",
+  "status": ""
+ }
+];
+
 // ---------------------------------------------------------------------
 // Formulas — identical to the desktop app, verified against real Airtable
 // data there. See that repo's main.py docstring for the verification notes.
@@ -118,16 +2092,132 @@ function calculate(unitPrice, eupm, unitCostPct) {
   return { unitCost, estMntIncome, estYrIncome, unitCostMnt, estMntProfit, estYrProfit };
 }
 
-// Generic sample catalog — illustrative figures, not real financial data.
-const CATALOG = [
-  { source: "Product", name: "Online Course", unitPrice: 120, eupm: 3 },
-  { source: "Product", name: "Ebook", unitPrice: 20, eupm: 6 },
-  { source: "Product", name: "Digital Template Pack", unitPrice: 40, eupm: 5 },
-  { source: "Income Stream", name: "Monthly Subscription", unitPrice: 20, eupm: 30 },
-  { source: "Income Stream", name: "Consulting Service", unitPrice: 150, eupm: 4 },
-  { source: "Income Stream", name: "Freelance Project (Commission)", unitPrice: 500, eupm: 1 },
-];
+function fmt(n) {
+  return "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmt0(n) {
+  return "$" + Math.round(n).toLocaleString();
+}
 
+// --- Stats ---
+(function renderStats() {
+  const statsEl = document.getElementById("stats");
+  const totalYr = PRODUCTS.reduce((s, p) => s + p.estYrIncome, 0);
+  const totalMnt = PRODUCTS.reduce((s, p) => s + p.estMntIncome, 0);
+  const passive = PRODUCTS.filter(p => p.incomeType === "Passive").length;
+  const stats = [
+    { label: "Products", value: PRODUCTS.length },
+    { label: "Est. Total Mnt. Income", value: fmt0(totalMnt) },
+    { label: "Est. Total Yr. Income", value: fmt0(totalYr) },
+    { label: "Passive Income Products", value: `${passive} of ${PRODUCTS.length}` },
+  ];
+  statsEl.innerHTML = "";
+  stats.forEach(s => {
+    const div = document.createElement("div");
+    div.className = "stat";
+    div.innerHTML = `<div class="label">${s.label}</div><div class="value">${s.value}</div>`;
+    statsEl.appendChild(div);
+  });
+})();
+
+// --- Product table ---
+const areaFilter = document.getElementById("area-filter");
+const typeFilter = document.getElementById("type-filter");
+const incomeFilter = document.getElementById("income-filter");
+const tableBody = document.getElementById("table-body");
+const countEl = document.getElementById("count");
+
+function distinct(field) { return [...new Set(PRODUCTS.map(p => p[field]).filter(Boolean))].sort(); }
+function populate(select, values) {
+  values.forEach(v => {
+    const opt = document.createElement("option");
+    opt.value = v; opt.textContent = v;
+    select.appendChild(opt);
+  });
+}
+populate(areaFilter, distinct("area"));
+populate(typeFilter, distinct("type"));
+populate(incomeFilter, distinct("incomeType"));
+
+let sortCol = "estYrIncome", sortDir = -1;
+
+function drawTable() {
+  const area = areaFilter.value, type = typeFilter.value, income = incomeFilter.value;
+  let rows = PRODUCTS.filter(p =>
+    (!area || p.area === area) && (!type || p.type === type) && (!income || p.incomeType === income)
+  );
+  rows = [...rows].sort((a, b) => {
+    const va = a[sortCol], vb = b[sortCol];
+    if (typeof va === "number" && typeof vb === "number") return (va - vb) * sortDir;
+    return String(va).localeCompare(String(vb)) * sortDir;
+  });
+  countEl.textContent = `${rows.length} of ${PRODUCTS.length} products`;
+  tableBody.innerHTML = "";
+  rows.forEach(p => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="name">${p.name}</td>
+      <td><span class="tag">${p.type || "—"}</span></td>
+      <td>${fmt(p.unitPrice)}</td>
+      <td>${p.eupm}</td>
+      <td>${fmt0(p.estMntIncome)}</td>
+      <td>${fmt0(p.estYrIncome)}</td>
+    `;
+    tableBody.appendChild(tr);
+  });
+}
+[areaFilter, typeFilter, incomeFilter].forEach(el => el.addEventListener("change", drawTable));
+document.querySelectorAll("th[data-col]").forEach(th => {
+  th.addEventListener("click", () => {
+    const col = th.dataset.col;
+    if (sortCol === col) sortDir *= -1; else { sortCol = col; sortDir = -1; }
+    drawTable();
+  });
+});
+drawTable();
+
+// --- Chart: top 10 by yearly income, no external libs ---
+(function drawChart() {
+  const canvas = document.getElementById("chart");
+  const dpr = window.devicePixelRatio || 1;
+  const cssWidth = canvas.parentElement.clientWidth - 32;
+  const cssHeight = 280;
+  canvas.width = cssWidth * dpr;
+  canvas.height = cssHeight * dpr;
+  canvas.style.width = cssWidth + "px";
+  canvas.style.height = cssHeight + "px";
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+
+  const style = getComputedStyle(document.documentElement);
+  const barColor = style.getPropertyValue("--bar").trim() || "#2563eb";
+  const textColor = style.getPropertyValue("--text-dim").trim() || "#6b7280";
+
+  const top = [...PRODUCTS].sort((a, b) => b.estYrIncome - a.estYrIncome).slice(0, 10);
+  const max = Math.max(...top.map(p => p.estYrIncome), 1);
+  const barHeight = 20;
+  const gap = 8;
+  const labelWidth = 190;
+  const chartLeft = labelWidth + 8;
+  const chartRight = cssWidth - 60;
+
+  ctx.font = "11px -apple-system, BlinkMacSystemFont, sans-serif";
+  top.forEach((p, i) => {
+    const y = i * (barHeight + gap) + 8;
+    const barW = ((p.estYrIncome / max) * (chartRight - chartLeft));
+    ctx.fillStyle = textColor;
+    ctx.textAlign = "right";
+    const label = p.name.length > 26 ? p.name.slice(0, 25) + "…" : p.name;
+    ctx.fillText(label, labelWidth, y + barHeight * 0.7);
+    ctx.fillStyle = barColor;
+    ctx.fillRect(chartLeft, y, Math.max(barW, 1), barHeight);
+    ctx.fillStyle = textColor;
+    ctx.textAlign = "left";
+    ctx.fillText("$" + Math.round(p.estYrIncome).toLocaleString(), chartLeft + barW + 6, y + barHeight * 0.7);
+  });
+})();
+
+// --- Calculator ---
 const STORAGE_KEY = "product-income-calculator-web:scenarios";
 
 function loadScenarios() {
@@ -155,7 +2245,6 @@ function deleteScenario(id) {
   saveScenarios(loadScenarios().filter(s => s.id !== id));
 }
 
-// --- UI ---
 const catalogSelect = document.getElementById("catalog-select");
 const unitPriceInput = document.getElementById("unit-price");
 const eupmInput = document.getElementById("eupm");
@@ -173,10 +2262,6 @@ const outputs = {
   estMntProfit: document.getElementById("r-mnt-profit"),
   estYrProfit: document.getElementById("r-yr-profit"),
 };
-
-function fmt(n) {
-  return "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 let currentResult = null;
 
@@ -197,19 +2282,21 @@ function recalc() {
 const placeholderOpt = document.createElement("option");
 placeholderOpt.textContent = "(none — enter manually)";
 catalogSelect.appendChild(placeholderOpt);
-CATALOG.forEach(c => {
+const sortedForCatalog = [...PRODUCTS].sort((a, b) => a.name.localeCompare(b.name));
+sortedForCatalog.forEach(p => {
   const opt = document.createElement("option");
-  opt.textContent = `[${c.source}] ${c.name}`;
+  opt.textContent = `[${p.type || "Product"}] ${p.name}`;
   catalogSelect.appendChild(opt);
 });
 
 catalogSelect.addEventListener("change", () => {
   const idx = catalogSelect.selectedIndex - 1;
   if (idx < 0) return;
-  const c = CATALOG[idx];
-  unitPriceInput.value = c.unitPrice;
-  eupmInput.value = c.eupm;
-  scenarioNameInput.value = c.name;
+  const p = sortedForCatalog[idx];
+  unitPriceInput.value = p.unitPrice;
+  eupmInput.value = p.eupm;
+  unitCostPctInput.value = Math.round((p.unitCostPctLow || 0.25) * 100);
+  scenarioNameInput.value = p.name;
   recalc();
 });
 
