@@ -88,6 +88,11 @@
   tr.editing td { background: var(--accent-dim); }
   .tag.edited { background: var(--accent-dim); color: var(--accent); border-color: transparent; margin-left: .3rem; }
 
+  .edit-hint { font-size: .78rem; color: var(--text-dim); margin: 0 0 .6rem; }
+  td.editable-cell { cursor: pointer; }
+  td.editable-cell:hover { background: var(--accent-dim); }
+  td.editable-cell input[type=number] { width: 80px; padding: .25rem .4rem; font-size: .82rem; }
+
   footer { margin-top: 2.5rem; text-align: center; font-size: .78rem; color: var(--text-dim); }
   footer a { color: var(--text-dim); }
 </style>
@@ -215,8 +220,12 @@
     <select class="chip" id="income-filter"><option value="">All Income Types</option></select>
   </div>
   <div class="count" id="count"></div>
+  <p class="edit-hint">Click any <strong>Unit Price</strong>, <strong>EUPM</strong>, or <strong>Cost %</strong> cell to edit it in place — press Enter or click away to save, Escape to cancel.</p>
   <div class="table-actions-row">
     <button class="btn outline small" id="export-table-csv">Export table as CSV</button>
+    <button class="btn outline small" id="import-table-csv">Import CSV (bulk update)</button>
+    <input type="file" id="import-file-input" accept=".csv,text/csv" style="display:none">
+    <span id="import-status" style="font-size:.8rem;color:var(--text-dim);"></span>
   </div>
   <div class="table-wrap">
     <table>
@@ -226,9 +235,10 @@
           <th data-col="type">Type</th>
           <th data-col="unitPrice">Unit Price</th>
           <th data-col="eupm">EUPM</th>
+          <th data-col="unitCostPct">Cost %</th>
           <th data-col="estMntIncome">Mnt. Income</th>
           <th data-col="estYrIncome">Yr. Income</th>
-          <th>Actions</th>
+          <th>Reset</th>
         </tr>
       </thead>
       <tbody id="table-body"></tbody>
@@ -2372,7 +2382,6 @@ populate(typeFilter, distinct("type"));
 populate(incomeFilter, distinct("incomeType"));
 
 let sortCol = "estYrIncome", sortDir = -1;
-let editingId = null;
 
 function currentFilteredSorted() {
   const area = areaFilter.value, type = typeFilter.value, income = incomeFilter.value;
@@ -2387,54 +2396,81 @@ function currentFilteredSorted() {
   return rows;
 }
 
+// Click-to-edit cell: click to reveal a number input in place; Enter/blur commits, Escape cancels.
+function editableNumberCell(displayText, currentValue, onCommit) {
+  const td = document.createElement("td");
+  td.className = "editable-cell";
+  td.textContent = displayText;
+  td.title = "Click to edit";
+  td.addEventListener("click", () => {
+    if (td.querySelector("input")) return;
+    td.textContent = "";
+    const input = document.createElement("input");
+    input.type = "number"; input.step = "0.01"; input.value = currentValue;
+    td.appendChild(input);
+    input.focus(); input.select();
+    let done = false;
+    function commit() {
+      if (done) return; done = true;
+      const val = parseFloat(input.value);
+      onCommit(isNaN(val) ? currentValue : val);
+    }
+    function cancel() {
+      if (done) return; done = true;
+      drawTable();
+    }
+    input.addEventListener("blur", commit);
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter") input.blur();
+      else if (e.key === "Escape") cancel();
+    });
+  });
+  return td;
+}
+
 function drawTable() {
   const rows = currentFilteredSorted();
   countEl.textContent = `${rows.length} of ${PRODUCTS.length} products`;
   tableBody.innerHTML = "";
   rows.forEach(p => {
     const tr = document.createElement("tr");
-    if (editingId === p.id) {
-      tr.className = "editing";
-      tr.innerHTML = `
-        <td class="name">${p.name}</td>
-        <td><span class="tag">${p.type || "—"}</span></td>
-        <td><input type="number" step="0.01" class="edit-unit-price" value="${p.unitPrice}"></td>
-        <td><input type="number" step="0.01" class="edit-eupm" value="${p.eupm}"></td>
-        <td>${fmt0(p.estMntIncome)}</td>
-        <td>${fmt0(p.estYrIncome)}</td>
-        <td class="actions-col">
-          <label style="display:inline-block;font-size:.72rem;color:var(--text-dim);margin:0 .3rem 0 0;">Cost %</label>
-          <input type="number" step="1" class="edit-unit-cost-pct" value="${Math.round(p.unitCostPct * 100)}" style="width:56px;">
-          <button class="btn small save-row-btn">Save</button>
-          <button class="btn outline small cancel-row-btn">Cancel</button>
-        </td>
-      `;
-      tr.querySelector(".save-row-btn").addEventListener("click", () => {
-        const unitPrice = parseFloat(tr.querySelector(".edit-unit-price").value) || 0;
-        const eupm = parseFloat(tr.querySelector(".edit-eupm").value) || 0;
-        const unitCostPct = (parseFloat(tr.querySelector(".edit-unit-cost-pct").value) || 0) / 100;
-        setProductEdit(p.id, { unitPrice, eupm, unitCostPct });
-        editingId = null;
-        refreshAll();
-      });
-      tr.querySelector(".cancel-row-btn").addEventListener("click", () => { editingId = null; drawTable(); });
-    } else {
-      tr.innerHTML = `
-        <td class="name">${p.name}${p.edited ? '<span class="tag edited">edited</span>' : ""}</td>
-        <td><span class="tag">${p.type || "—"}</span></td>
-        <td>${fmt(p.unitPrice)}</td>
-        <td>${p.eupm}</td>
-        <td>${fmt0(p.estMntIncome)}</td>
-        <td>${fmt0(p.estYrIncome)}</td>
-        <td class="actions-col">
-          <button class="btn small edit-row-btn">Edit</button>
-          ${p.edited ? '<button class="btn outline small reset-row-btn">Reset</button>' : ""}
-        </td>
-      `;
-      tr.querySelector(".edit-row-btn").addEventListener("click", () => { editingId = p.id; drawTable(); });
-      const resetBtn = tr.querySelector(".reset-row-btn");
-      if (resetBtn) resetBtn.addEventListener("click", () => { clearProductEdit(p.id); refreshAll(); });
+
+    const nameTd = document.createElement("td");
+    nameTd.className = "name";
+    nameTd.textContent = p.name;
+    if (p.edited) nameTd.insertAdjacentHTML("beforeend", '<span class="tag edited">edited</span>');
+    tr.appendChild(nameTd);
+
+    const typeTd = document.createElement("td");
+    typeTd.innerHTML = `<span class="tag">${p.type || "—"}</span>`;
+    tr.appendChild(typeTd);
+
+    tr.appendChild(editableNumberCell(fmt(p.unitPrice), p.unitPrice, val => {
+      setProductEdit(p.id, { unitPrice: val });
+      refreshAll();
+    }));
+    tr.appendChild(editableNumberCell(String(p.eupm), p.eupm, val => {
+      setProductEdit(p.id, { eupm: val });
+      refreshAll();
+    }));
+    tr.appendChild(editableNumberCell(String(Math.round(p.unitCostPct * 100)), Math.round(p.unitCostPct * 100), val => {
+      setProductEdit(p.id, { unitCostPct: val / 100 });
+      refreshAll();
+    }));
+
+    const mntTd = document.createElement("td"); mntTd.textContent = fmt0(p.estMntIncome); tr.appendChild(mntTd);
+    const yrTd = document.createElement("td"); yrTd.textContent = fmt0(p.estYrIncome); tr.appendChild(yrTd);
+
+    const actionsTd = document.createElement("td");
+    actionsTd.className = "actions-col";
+    if (p.edited) {
+      const resetBtn = document.createElement("button");
+      resetBtn.className = "btn outline small"; resetBtn.textContent = "Reset";
+      resetBtn.addEventListener("click", () => { clearProductEdit(p.id); refreshAll(); });
+      actionsTd.appendChild(resetBtn);
     }
+    tr.appendChild(actionsTd);
+
     tableBody.appendChild(tr);
   });
 }
@@ -2447,23 +2483,105 @@ document.querySelectorAll("th[data-col]").forEach(th => {
   });
 });
 
+const EXPORT_CSV_COLUMNS = [
+  { label: "ID", value: "id" },
+  { label: "Product", value: "name" },
+  { label: "Type", value: "type" },
+  { label: "Area", value: "area" },
+  { label: "Unit Price", value: "unitPrice" },
+  { label: "EUPM", value: "eupm" },
+  { label: "Unit Cost %", value: r => Math.round(r.unitCostPct * 100) },
+  { label: "Est. Mnt. Income", value: "estMntIncome" },
+  { label: "Est. Yr. Income", value: "estYrIncome" },
+  { label: "Est. Mnt. Profit", value: "estMntProfit" },
+  { label: "Est. Yr. Profit", value: "estYrProfit" },
+  { label: "Income Type", value: "incomeType" },
+  { label: "Edited", value: r => r.edited ? "Yes" : "No" },
+];
+
 document.getElementById("export-table-csv").addEventListener("click", () => {
   const rows = currentFilteredSorted();
-  const csv = toCSV(rows, [
-    { label: "Product", value: "name" },
-    { label: "Type", value: "type" },
-    { label: "Area", value: "area" },
-    { label: "Unit Price", value: "unitPrice" },
-    { label: "EUPM", value: "eupm" },
-    { label: "Unit Cost %", value: r => Math.round(r.unitCostPct * 100) },
-    { label: "Est. Mnt. Income", value: "estMntIncome" },
-    { label: "Est. Yr. Income", value: "estYrIncome" },
-    { label: "Est. Mnt. Profit", value: "estMntProfit" },
-    { label: "Est. Yr. Profit", value: "estYrProfit" },
-    { label: "Income Type", value: "incomeType" },
-    { label: "Edited", value: r => r.edited ? "Yes" : "No" },
-  ]);
+  const csv = toCSV(rows, EXPORT_CSV_COLUMNS);
   downloadFile("product-catalog.csv", csv, "text/csv");
+});
+
+// --- CSV import: bulk-update Unit Price / EUPM / Unit Cost % by matching ID (preferred) or Product name ---
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = "", inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else if (c === '"') inQuotes = true;
+    else if (c === ',') { row.push(field); field = ""; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      row.push(field); field = "";
+      if (row.length > 1 || row[0] !== "") rows.push(row);
+      row = [];
+    } else field += c;
+  }
+  if (field !== "" || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+function importCSV(text) {
+  const rows = parseCSV(text);
+  if (!rows.length) return { updated: 0, skipped: 0, total: 0 };
+  const header = rows[0].map(h => h.trim().toLowerCase());
+  const idIdx = header.indexOf("id");
+  const nameIdx = header.indexOf("product");
+  const priceIdx = header.findIndex(h => h === "unit price");
+  const eupmIdx = header.indexOf("eupm");
+  const costPctIdx = header.findIndex(h => h.startsWith("unit cost %") || h === "cost %");
+  if (idIdx === -1 && nameIdx === -1) return { updated: 0, skipped: 0, total: 0, error: "CSV needs an 'ID' or 'Product' column to match rows." };
+
+  const byId = new Map(PRODUCTS.map(p => [p.id, p]));
+  const byName = new Map(PRODUCTS.map(p => [p.name.trim().toLowerCase(), p]));
+  const edits = loadEdits();
+  let updated = 0, skipped = 0;
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r || r.every(c => c === "")) continue;
+    const id = idIdx !== -1 ? r[idIdx] : undefined;
+    const name = nameIdx !== -1 ? (r[nameIdx] || "").trim().toLowerCase() : undefined;
+    const product = (id && byId.get(id)) || (name && byName.get(name));
+    if (!product) { skipped++; continue; }
+    const patch = {};
+    if (priceIdx !== -1 && r[priceIdx] !== "" && !isNaN(parseFloat(r[priceIdx]))) patch.unitPrice = parseFloat(r[priceIdx]);
+    if (eupmIdx !== -1 && r[eupmIdx] !== "" && !isNaN(parseFloat(r[eupmIdx]))) patch.eupm = parseFloat(r[eupmIdx]);
+    if (costPctIdx !== -1 && r[costPctIdx] !== "" && !isNaN(parseFloat(r[costPctIdx]))) patch.unitCostPct = parseFloat(r[costPctIdx]) / 100;
+    if (Object.keys(patch).length === 0) { skipped++; continue; }
+    edits[product.id] = { ...(edits[product.id] || {}), ...patch };
+    updated++;
+  }
+  saveEdits(edits);
+  return { updated, skipped, total: rows.length - 1 };
+}
+
+const importBtn = document.getElementById("import-table-csv");
+const importFileInput = document.getElementById("import-file-input");
+const importStatus = document.getElementById("import-status");
+importBtn.addEventListener("click", () => importFileInput.click());
+importFileInput.addEventListener("change", () => {
+  const file = importFileInput.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const result = importCSV(reader.result);
+    if (result.error) {
+      importStatus.textContent = result.error;
+    } else {
+      importStatus.textContent = `Imported: ${result.updated} updated, ${result.skipped} skipped (of ${result.total} rows).`;
+      refreshAll();
+    }
+    importFileInput.value = "";
+  };
+  reader.readAsText(file);
 });
 
 // --- Chart: top 10 by yearly income, no external libs ---
