@@ -10,8 +10,10 @@ A static, single-file web app version of [product-income-calculator](https://git
 
 - Shows my **actual product catalog** — 120 products exported from my Airtable workspace, with real unit prices and income projections, published deliberately
 - Sortable/filterable table (by Area, Type, Income Type) plus a top-10-by-yearly-income bar chart (plain canvas, no chart library)
-- What-if calculator uses the **exact same formulas** as the desktop app, and can load any real product from the catalog as a starting point
-- Saved scenarios stay in your browser's `localStorage` — nothing is sent anywhere
+- **The whole catalog is a live calculator**: click "Edit" on any row to change its Unit Price, EUPM, or Unit Cost % — the row, the stats at the top, and the chart all recalculate immediately using the same formula stack. "Reset" reverts a single row; "Reset all edits" in the toolbar reverts everything
+- What-if calculator uses the **exact same formulas** as the desktop app, and can load any real (or edited) product from the catalog as a starting point
+- **Export your reports**: download the current filtered/sorted catalog table as CSV, download all saved what-if scenarios as CSV, or export a full JSON backup (catalog edits + scenarios) that can be re-imported later
+- Saved scenarios and catalog edits stay in your browser's `localStorage` — nothing is sent anywhere
 - Makes no network calls
 
 ```

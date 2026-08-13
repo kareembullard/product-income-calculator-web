@@ -74,6 +74,19 @@
   li.scenario .figures { color: var(--text-dim); margin-top: .25rem; }
   .empty { text-align: center; color: var(--text-dim); padding: 1rem 0; font-size: .85rem; }
 
+  .edit-toolbar { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; font-size: .8rem; color: var(--text-dim); margin-bottom: 1rem; }
+  .btn.outline { background: var(--surface); color: var(--text); border: 1px solid var(--border); padding: .4rem .8rem; font-size: .8rem; font-weight: 500; }
+  .btn.outline:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.small { padding: .3rem .65rem; font-size: .76rem; }
+  .btn.danger-outline { background: var(--surface); color: var(--text-dim); border: 1px solid var(--border); padding: .4rem .8rem; font-size: .8rem; }
+  .btn.danger-outline:hover { border-color: #dc2626; color: #dc2626; }
+  .table-actions-row { display: flex; justify-content: flex-end; margin-bottom: .5rem; }
+
+  td.actions-col { white-space: nowrap; }
+  td input[type=number] { width: 90px; padding: .3rem .4rem; font-size: .8rem; }
+  tr.editing td { background: var(--accent-dim); }
+  .tag.edited { background: var(--accent-dim); color: var(--accent); border-color: transparent; margin-left: .3rem; }
+
   footer { margin-top: 2.5rem; text-align: center; font-size: .78rem; color: var(--text-dim); }
   footer a { color: var(--text-dim); }
 </style>
@@ -155,7 +168,9 @@
 <div class="wrap">
   <h1>🧮 Product / Income Calculator</h1>
   <p class="sub">My real product & income catalog, plus a live "what if" calculator using the same formula stack.</p>
-  <div class="privacy-note">This is my real product/pricing catalog (120 products), exported from my own Airtable workspace and published deliberately. Saved calculator scenarios stay in <em>your</em> browser (<code>localStorage</code>) — nothing is sent anywhere.</div>
+  <div class="privacy-note">This is my real product/pricing catalog (120 products), exported from my own Airtable workspace and published deliberately. Every row is editable — change Unit Price, EUPM, or Unit Cost % and the catalog stats, table, and chart above recalculate live. Edits and saved scenarios stay in <em>your</em> browser (<code>localStorage</code>) — nothing is sent anywhere. Export buttons let you download your edited catalog, scenarios, or a full backup.</div>
+
+  <div class="edit-toolbar" id="edit-toolbar"></div>
 
   <div class="stat-row" id="stats"></div>
 
@@ -166,6 +181,9 @@
     <select class="chip" id="income-filter"><option value="">All Income Types</option></select>
   </div>
   <div class="count" id="count"></div>
+  <div class="table-actions-row">
+    <button class="btn outline small" id="export-table-csv">Export table as CSV</button>
+  </div>
   <div class="table-wrap">
     <table>
       <thead>
@@ -176,6 +194,7 @@
           <th data-col="eupm">EUPM</th>
           <th data-col="estMntIncome">Mnt. Income</th>
           <th data-col="estYrIncome">Yr. Income</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody id="table-body"></tbody>
@@ -219,6 +238,9 @@
     <div class="status" id="save-status"></div>
     <ul class="scenarios" id="scenarios-list"></ul>
     <div class="empty" id="scenarios-empty" style="display:none">No saved scenarios yet.</div>
+    <div class="table-actions-row" style="justify-content:flex-start; margin-top:.8rem;">
+      <button class="btn outline small" id="export-scenarios-csv">Export scenarios as CSV</button>
+    </div>
   </fieldset>
 
   <footer>
@@ -2172,17 +2194,120 @@ function fmt0(n) {
   return "$" + Math.round(n).toLocaleString();
 }
 
+// --- Edits overlay: PRODUCTS stays immutable; edits live in localStorage keyed by product id ---
+const EDITS_KEY = "product-income-calculator-web:edits";
+function loadEdits() {
+  try { return JSON.parse(localStorage.getItem(EDITS_KEY) || "{}"); } catch { return {}; }
+}
+function saveEdits(edits) { localStorage.setItem(EDITS_KEY, JSON.stringify(edits)); }
+function isEdited(id) { return !!loadEdits()[id]; }
+function setProductEdit(id, patch) {
+  const edits = loadEdits();
+  edits[id] = { ...(edits[id] || {}), ...patch };
+  saveEdits(edits);
+}
+function clearProductEdit(id) {
+  const edits = loadEdits();
+  delete edits[id];
+  saveEdits(edits);
+}
+function clearAllEdits() { saveEdits({}); }
+
+function effectiveProducts() {
+  const edits = loadEdits();
+  return PRODUCTS.map(p => {
+    const e = edits[p.id];
+    const unitPrice = e && e.unitPrice !== undefined ? e.unitPrice : p.unitPrice;
+    const eupm = e && e.eupm !== undefined ? e.eupm : p.eupm;
+    const unitCostPct = e && e.unitCostPct !== undefined ? e.unitCostPct : (p.unitCostPctLow || 0.25);
+    const r = calculate(unitPrice, eupm, unitCostPct);
+    return {
+      ...p,
+      unitPrice, eupm, unitCostPct,
+      estMntIncome: r.estMntIncome, estYrIncome: r.estYrIncome,
+      estMntProfit: r.estMntProfit, estYrProfit: r.estYrProfit,
+      edited: !!e,
+    };
+  });
+}
+
+// --- CSV export helper ---
+function toCSV(rows, columns) {
+  const esc = v => {
+    const s = String(v ?? "");
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const header = columns.map(c => esc(c.label)).join(",");
+  const lines = rows.map(r => columns.map(c => esc(typeof c.value === "function" ? c.value(r) : r[c.value])).join(","));
+  return [header, ...lines].join("\n");
+}
+function downloadFile(filename, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// --- Edit toolbar: Export/Import full backup, Reset All edits ---
+function renderEditToolbar() {
+  const bar = document.getElementById("edit-toolbar");
+  bar.innerHTML = "";
+  const editedCount = Object.keys(loadEdits()).length;
+  const countSpan = document.createElement("span");
+  countSpan.textContent = editedCount ? `${editedCount} product${editedCount === 1 ? "" : "s"} edited` : "No edits yet";
+  const exportBtn = document.createElement("button");
+  exportBtn.className = "btn outline small"; exportBtn.textContent = "Export data (JSON)";
+  exportBtn.addEventListener("click", () => {
+    downloadFile("product-income-calculator-data.json", JSON.stringify({ edits: loadEdits(), scenarios: loadScenarios() }, null, 2), "application/json");
+  });
+  const importBtn = document.createElement("button");
+  importBtn.className = "btn outline small"; importBtn.textContent = "Import data";
+  const fileInput = document.createElement("input");
+  fileInput.type = "file"; fileInput.accept = "application/json"; fileInput.style.display = "none";
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        if (parsed.edits) saveEdits(parsed.edits);
+        if (parsed.scenarios) saveScenarios(parsed.scenarios);
+        refreshAll();
+      } catch { alert("Couldn't parse that file."); }
+    };
+    reader.readAsText(file);
+  });
+  importBtn.addEventListener("click", () => fileInput.click());
+  const resetBtn = document.createElement("button");
+  resetBtn.className = "btn danger-outline small"; resetBtn.textContent = "Reset all edits";
+  resetBtn.addEventListener("click", () => {
+    if (!confirm("Reset all product edits back to the original catalog? Saved scenarios are not affected.")) return;
+    clearAllEdits();
+    refreshAll();
+  });
+  bar.append(countSpan, exportBtn, importBtn, fileInput, resetBtn);
+}
+
+function refreshAll() {
+  renderStats();
+  drawTable();
+  drawChart();
+  renderEditToolbar();
+}
+
 // --- Stats ---
-(function renderStats() {
+function renderStats() {
   const statsEl = document.getElementById("stats");
-  const totalYr = PRODUCTS.reduce((s, p) => s + p.estYrIncome, 0);
-  const totalMnt = PRODUCTS.reduce((s, p) => s + p.estMntIncome, 0);
-  const passive = PRODUCTS.filter(p => p.incomeType === "Passive").length;
+  const products = effectiveProducts();
+  const totalYr = products.reduce((s, p) => s + p.estYrIncome, 0);
+  const totalMnt = products.reduce((s, p) => s + p.estMntIncome, 0);
+  const passive = products.filter(p => p.incomeType === "Passive").length;
   const stats = [
-    { label: "Products", value: PRODUCTS.length },
+    { label: "Products", value: products.length },
     { label: "Est. Total Mnt. Income", value: fmt0(totalMnt) },
     { label: "Est. Total Yr. Income", value: fmt0(totalYr) },
-    { label: "Passive Income Products", value: `${passive} of ${PRODUCTS.length}` },
+    { label: "Passive Income Products", value: `${passive} of ${products.length}` },
   ];
   statsEl.innerHTML = "";
   stats.forEach(s => {
@@ -2191,7 +2316,7 @@ function fmt0(n) {
     div.innerHTML = `<div class="label">${s.label}</div><div class="value">${s.value}</div>`;
     statsEl.appendChild(div);
   });
-})();
+}
 
 // --- Product table ---
 const areaFilter = document.getElementById("area-filter");
@@ -2213,10 +2338,11 @@ populate(typeFilter, distinct("type"));
 populate(incomeFilter, distinct("incomeType"));
 
 let sortCol = "estYrIncome", sortDir = -1;
+let editingId = null;
 
-function drawTable() {
+function currentFilteredSorted() {
   const area = areaFilter.value, type = typeFilter.value, income = incomeFilter.value;
-  let rows = PRODUCTS.filter(p =>
+  let rows = effectiveProducts().filter(p =>
     (!area || p.area === area) && (!type || p.type === type) && (!income || p.incomeType === income)
   );
   rows = [...rows].sort((a, b) => {
@@ -2224,18 +2350,57 @@ function drawTable() {
     if (typeof va === "number" && typeof vb === "number") return (va - vb) * sortDir;
     return String(va).localeCompare(String(vb)) * sortDir;
   });
+  return rows;
+}
+
+function drawTable() {
+  const rows = currentFilteredSorted();
   countEl.textContent = `${rows.length} of ${PRODUCTS.length} products`;
   tableBody.innerHTML = "";
   rows.forEach(p => {
     const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td class="name">${p.name}</td>
-      <td><span class="tag">${p.type || "—"}</span></td>
-      <td>${fmt(p.unitPrice)}</td>
-      <td>${p.eupm}</td>
-      <td>${fmt0(p.estMntIncome)}</td>
-      <td>${fmt0(p.estYrIncome)}</td>
-    `;
+    if (editingId === p.id) {
+      tr.className = "editing";
+      tr.innerHTML = `
+        <td class="name">${p.name}</td>
+        <td><span class="tag">${p.type || "—"}</span></td>
+        <td><input type="number" step="0.01" class="edit-unit-price" value="${p.unitPrice}"></td>
+        <td><input type="number" step="0.01" class="edit-eupm" value="${p.eupm}"></td>
+        <td>${fmt0(p.estMntIncome)}</td>
+        <td>${fmt0(p.estYrIncome)}</td>
+        <td class="actions-col">
+          <label style="display:inline-block;font-size:.72rem;color:var(--text-dim);margin:0 .3rem 0 0;">Cost %</label>
+          <input type="number" step="1" class="edit-unit-cost-pct" value="${Math.round(p.unitCostPct * 100)}" style="width:56px;">
+          <button class="btn small save-row-btn">Save</button>
+          <button class="btn outline small cancel-row-btn">Cancel</button>
+        </td>
+      `;
+      tr.querySelector(".save-row-btn").addEventListener("click", () => {
+        const unitPrice = parseFloat(tr.querySelector(".edit-unit-price").value) || 0;
+        const eupm = parseFloat(tr.querySelector(".edit-eupm").value) || 0;
+        const unitCostPct = (parseFloat(tr.querySelector(".edit-unit-cost-pct").value) || 0) / 100;
+        setProductEdit(p.id, { unitPrice, eupm, unitCostPct });
+        editingId = null;
+        refreshAll();
+      });
+      tr.querySelector(".cancel-row-btn").addEventListener("click", () => { editingId = null; drawTable(); });
+    } else {
+      tr.innerHTML = `
+        <td class="name">${p.name}${p.edited ? '<span class="tag edited">edited</span>' : ""}</td>
+        <td><span class="tag">${p.type || "—"}</span></td>
+        <td>${fmt(p.unitPrice)}</td>
+        <td>${p.eupm}</td>
+        <td>${fmt0(p.estMntIncome)}</td>
+        <td>${fmt0(p.estYrIncome)}</td>
+        <td class="actions-col">
+          <button class="btn small edit-row-btn">Edit</button>
+          ${p.edited ? '<button class="btn outline small reset-row-btn">Reset</button>' : ""}
+        </td>
+      `;
+      tr.querySelector(".edit-row-btn").addEventListener("click", () => { editingId = p.id; drawTable(); });
+      const resetBtn = tr.querySelector(".reset-row-btn");
+      if (resetBtn) resetBtn.addEventListener("click", () => { clearProductEdit(p.id); refreshAll(); });
+    }
     tableBody.appendChild(tr);
   });
 }
@@ -2247,10 +2412,28 @@ document.querySelectorAll("th[data-col]").forEach(th => {
     drawTable();
   });
 });
-drawTable();
+
+document.getElementById("export-table-csv").addEventListener("click", () => {
+  const rows = currentFilteredSorted();
+  const csv = toCSV(rows, [
+    { label: "Product", value: "name" },
+    { label: "Type", value: "type" },
+    { label: "Area", value: "area" },
+    { label: "Unit Price", value: "unitPrice" },
+    { label: "EUPM", value: "eupm" },
+    { label: "Unit Cost %", value: r => Math.round(r.unitCostPct * 100) },
+    { label: "Est. Mnt. Income", value: "estMntIncome" },
+    { label: "Est. Yr. Income", value: "estYrIncome" },
+    { label: "Est. Mnt. Profit", value: "estMntProfit" },
+    { label: "Est. Yr. Profit", value: "estYrProfit" },
+    { label: "Income Type", value: "incomeType" },
+    { label: "Edited", value: r => r.edited ? "Yes" : "No" },
+  ]);
+  downloadFile("product-catalog.csv", csv, "text/csv");
+});
 
 // --- Chart: top 10 by yearly income, no external libs ---
-(function drawChart() {
+function drawChart() {
   const canvas = document.getElementById("chart");
   const dpr = window.devicePixelRatio || 1;
   const cssWidth = canvas.parentElement.clientWidth - 32;
@@ -2261,12 +2444,13 @@ drawTable();
   canvas.style.height = cssHeight + "px";
   const ctx = canvas.getContext("2d");
   ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, cssWidth, cssHeight);
 
   const style = getComputedStyle(document.documentElement);
   const barColor = style.getPropertyValue("--bar").trim() || "#2563eb";
   const textColor = style.getPropertyValue("--text-dim").trim() || "#6b7280";
 
-  const top = [...PRODUCTS].sort((a, b) => b.estYrIncome - a.estYrIncome).slice(0, 10);
+  const top = [...effectiveProducts()].sort((a, b) => b.estYrIncome - a.estYrIncome).slice(0, 10);
   const max = Math.max(...top.map(p => p.estYrIncome), 1);
   const barHeight = 20;
   const gap = 8;
@@ -2288,7 +2472,7 @@ drawTable();
     ctx.textAlign = "left";
     ctx.fillText("$" + Math.round(p.estYrIncome).toLocaleString(), chartLeft + barW + 6, y + barHeight * 0.7);
   });
-})();
+}
 
 // --- Calculator ---
 const STORAGE_KEY = "product-income-calculator-web:scenarios";
@@ -2365,10 +2549,11 @@ sortedForCatalog.forEach(p => {
 catalogSelect.addEventListener("change", () => {
   const idx = catalogSelect.selectedIndex - 1;
   if (idx < 0) return;
-  const p = sortedForCatalog[idx];
+  const base = sortedForCatalog[idx];
+  const p = effectiveProducts().find(x => x.id === base.id) || base;
   unitPriceInput.value = p.unitPrice;
   eupmInput.value = p.eupm;
-  unitCostPctInput.value = Math.round((p.unitCostPctLow || 0.25) * 100);
+  unitCostPctInput.value = Math.round((p.unitCostPct !== undefined ? p.unitCostPct : (p.unitCostPctLow || 0.25)) * 100);
   scenarioNameInput.value = p.name;
   recalc();
 });
@@ -2406,6 +2591,25 @@ document.getElementById("save-btn").addEventListener("click", () => {
   refreshScenarios();
 });
 
+document.getElementById("export-scenarios-csv").addEventListener("click", () => {
+  const scenarios = loadScenarios();
+  if (!scenarios.length) { alert("No saved scenarios to export yet."); return; }
+  const csv = toCSV(scenarios, [
+    { label: "Scenario", value: "name" },
+    { label: "Unit Price", value: "unitPrice" },
+    { label: "EUPM", value: "eupm" },
+    { label: "Unit Cost %", value: r => Math.round(r.unitCostPct * 100) },
+    { label: "Unit Cost", value: "unitCost" },
+    { label: "Est. Mnt. Income", value: "estMntIncome" },
+    { label: "Est. Yr. Income", value: "estYrIncome" },
+    { label: "Est. Mnt. Profit", value: "estMntProfit" },
+    { label: "Est. Yr. Profit", value: "estYrProfit" },
+    { label: "Saved", value: "createdAt" },
+  ]);
+  downloadFile("calculator-scenarios.csv", csv, "text/csv");
+});
+
+refreshAll();
 recalc();
 refreshScenarios();
 </script>
