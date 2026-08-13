@@ -2333,11 +2333,26 @@ function renderEditToolbar() {
   bar.append(countSpan, exportBtn, importBtn, fileInput, resetBtn);
 }
 
+// Publish a lightweight read-only snapshot (id/name/price/income only, no full formulas) so
+// sibling apps under kareembullard.github.io (e.g. asset-hub-web) can link to real products
+// without duplicating the calculator's logic. Written on every load and every edit.
+const CATALOG_SNAPSHOT_KEY = "product-income-calculator-web:catalog-snapshot";
+function publishCatalogSnapshot() {
+  try {
+    const snapshot = effectiveProducts().map(p => ({
+      id: p.id, name: p.name, type: p.type, area: p.area,
+      unitPrice: p.unitPrice, estMntIncome: p.estMntIncome, estYrIncome: p.estYrIncome,
+    }));
+    localStorage.setItem(CATALOG_SNAPSHOT_KEY, JSON.stringify(snapshot));
+  } catch {}
+}
+
 function refreshAll() {
   renderStats();
   drawTable();
   drawChart();
   renderEditToolbar();
+  publishCatalogSnapshot();
 }
 
 // --- Stats ---
@@ -2439,6 +2454,7 @@ function drawTable() {
     nameTd.className = "name";
     nameTd.textContent = p.name;
     if (p.edited) nameTd.insertAdjacentHTML("beforeend", '<span class="tag edited">edited</span>');
+    if (assetExistsForProduct(p.id)) nameTd.insertAdjacentHTML("beforeend", '<span class="tag edited">🔗 asset built</span>');
     tr.appendChild(nameTd);
 
     const typeTd = document.createElement("td");
@@ -2482,6 +2498,18 @@ document.querySelectorAll("th[data-col]").forEach(th => {
     drawTable();
   });
 });
+
+// --- Cross-app link (reverse direction): asset-hub-web writes its own state to its own
+// localStorage key on every load/edit; since both apps share the kareembullard.github.io
+// origin, this app can check whether any asset has been linked to a given product. ---
+function assetExistsForProduct(productId) {
+  try {
+    const raw = localStorage.getItem("asset-hub-web:data");
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    return Array.isArray(data.assets) && data.assets.some(a => a.linkedProduct === productId);
+  } catch { return false; }
+}
 
 const EXPORT_CSV_COLUMNS = [
   { label: "ID", value: "id" },
